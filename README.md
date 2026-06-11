@@ -1,181 +1,157 @@
-# Flutter Admin Console
+# Flutter Admin Console（停車營運管理系統）
 
-一個使用 Flutter + CanvasKit + go_router 構建的現代化後台管理系統。
+使用 Flutter Web 開發的後台管理系統，技術選型對齊線上正式站
+[tnparking.tainan.gov.tw](https://tnparking.tainan.gov.tw)：**Flutter + CanvasKit + GetX + dio**。
 
-## 功能特色
+> 目前 API 預設為 **Mock 模式**（本地假資料，不連後端），方便直接運行與開發。
+> 切換到正式 API 的方式見下方〈Mock / 正式 API 切換〉。
 
-- **登入驗證**: 簡單的登入系統
-- **響應式設計**: 支援桌面和移動設備
-- **現代化 UI**: 參考 Bootstrap 的設計風格
-- **CanvasKit 渲染**: 使用 CanvasKit 提供更好的 Web 性能
-- **路由管理**: 使用 go_router 進行頁面導航
-- **多頁面支援**:
-  - 首頁儀表板
-  - 用戶管理
-  - 系統設定
-  - 更多頁面（可擴展）
-
-## 專案結構
-
-```
-lib/
-├── main.dart                          # 應用程式入口點
-├── router/
-│   └── app_router.dart               # 路由配置
-├── services/
-│   └── auth_service.dart             # 認證服務
-├── screens/
-│   ├── login_screen.dart             # 登入頁面
-│   └── dashboard/
-│       ├── dashboard_screen.dart     # 後台主頁面
-│       └── widgets/
-│           ├── header.dart           # 頂部導航
-│           ├── sidebar.dart          # 側邊選單
-│           └── main_content.dart     # 主要內容區
-└── web/
-    └── index.html                    # Web 配置（CanvasKit）
-```
+---
 
 ## 技術棧
 
-- **Flutter**: 跨平台 UI 框架
-- **go_router**: 聲明式路由管理
-- **shared_preferences**: 本地數據存儲
-- **CanvasKit**: Web 渲染引擎
+| 分類 | 技術 | 說明 |
+|------|------|------|
+| 框架 | Flutter Web (dart2js) | 與線上站相同 |
+| 算繪引擎 | CanvasKit | 在 `web/index.html` 指定 `renderer: "canvaskit"` |
+| 狀態管理 / 路由 / DI | **GetX** (`get`) | `GetMaterialApp`、`GetxController`、`Obx`、`Bindings` |
+| HTTP client | **dio** | 共用單一實例，可掛攔截器 |
+| SVG 圖示 | flutter_svg | 直接使用線上站的真實 SVG 素材 |
+| 檔案上傳 / 匯入 | file_picker | Excel / CSV 匯入 |
+| PDF 預覽 | pdfrx | 報表預覽（WASM，支援 Web）|
+| 多語系 / 日期 | intl | |
+| 本地儲存 | shared_preferences | 維持登入狀態 / token |
+| 字型 | NotoSansTC / Roboto | 與線上站相同，已內嵌 |
 
-## 開始使用
+---
 
-### 安裝依賴
+## 專案結構
+
+採用 GetX 標準模組架構（每個功能模組各自有 controller / binding / view）：
+
+```
+assets/
+├── fonts/                           # NotoSansTC / Roboto（取自線上站）
+├── image/header_logo.png            # 臺南市政府交通局 logo
+├── svg/                             # 線上站真實 SVG 素材（edit/search/add...）
+└── sample/sample_report.pdf         # PDF 預覽示範檔
+
+lib/
+├── main.dart                        # 進入點：註冊服務、GetMaterialApp、主題
+└── app/
+    ├── core/
+    │   ├── theme/app_colors.dart    # 全站配色（對齊線上樣式）
+    │   └── values/app_constants.dart# API base URL、useMock 開關、逾時設定
+    ├── data/
+    │   ├── models/                  # user_model / user_account
+    │   ├── providers/
+    │   │   ├── api_client.dart      # dio 封裝（共用實例 + token）
+    │   │   └── mock_interceptor.dart# Mock 模式攔截器（本地假資料）
+    │   └── services/
+    │       └── auth_service.dart    # GetxService：登入狀態單一來源
+    ├── routes/
+    │   ├── app_routes.dart          # 路由名稱常數
+    │   └── app_pages.dart           # GetPage 清單 + 登入守衛 middleware
+    └── modules/
+        ├── login/                   # controllers / bindings / views
+        └── dashboard/
+            ├── controllers/         # dashboard / user_account
+            ├── bindings/dashboard_binding.dart
+            ├── views/dashboard_view.dart
+            └── widgets/             # header / sidebar / main_content
+                                     #  + user_account_page / pdf_preview_dialog
+```
+
+### 架構資料流
+
+```
+┌──────────────┐   呼叫    ┌──────────────┐   dio    ┌──────────────┐
+│  Controller  │ ───────▶ │ AuthService  │ ───────▶ │  ApiClient   │
+│ (Obx 反應式) │          │ (GetxService)│          │   (dio)      │
+└──────────────┘          └──────────────┘          └──────┬───────┘
+       ▲                                                    │ useMock=true
+       │ Obx 自動更新 UI                                     ▼
+┌──────────────┐                                  ┌──────────────────┐
+│  View (GetView)                                  │ MockInterceptor  │
+└──────────────┘                                  │ （回傳本地假資料）│
+                                                   └──────────────────┘
+```
+
+---
+
+## 環境需求
+
+- Flutter SDK `3.10+`（開發驗證版本：Flutter 3.38.5 / Dart 3.x）
+- Chrome（Web 開發 / 預覽）
+
+---
+
+## 快速開始
 
 ```bash
+# 1. 安裝依賴
 flutter pub get
-```
 
-### 運行專案
-
-#### Web 開發模式
-
-```bash
+# 2. 以 Chrome 啟動（開發模式）
 flutter run -d chrome
+
+# 3. 靜態檢查
+flutter analyze
+
+# 4. 建置正式版（產出 build/web）
+flutter build web --release
 ```
 
-註：Flutter 3.38+ 版本會自動使用 `web/index.html` 中配置的 CanvasKit 渲染器。
+### 登入
 
-#### 構建生產版本
+Mock 模式下，輸入**任意非空帳號 / 密碼**即可登入（例如 `admin` / `123456`）。
+登入後會導向 `/#/dashboard`，左側選單可切換首頁 / 用戶管理 / 系統設定等頁面。
 
-```bash
-flutter build web
-```
+---
 
-### 登入說明
+## Mock / 正式 API 切換
 
-目前登入頁面接受任意帳號密碼組合（示範用途）。只要帳號和密碼欄位不為空即可登入。
+預設走本地假資料，**不需要後端就能跑**。要串接正式 API：
 
-在實際生產環境中，您需要：
-1. 實作真實的後端 API
-2. 在 `lib/services/auth_service.dart` 中連接您的認證 API
-3. 添加適當的錯誤處理和驗證邏輯
+1. 開 `lib/app/core/values/app_constants.dart`
+2. 把 `useMock` 改成 `false`：
 
-## 介面預覽
+   ```dart
+   static const bool useMock = false;
+   static const String apiBaseUrl = 'https://api-tnparking.tainan.gov.tw/api/v1';
+   ```
 
-### 登入頁面
-- 漸層背景設計
-- 卡片式登入表單
-- 表單驗證
+關掉 Mock 後，`ApiClient` 不再掛 `MockInterceptor`，所有請求改打 `apiBaseUrl`。
+service / controller 完全不用改。
 
-### 後台儀表板
-- **Header**:
-  - Logo 和標題
-  - 搜尋功能
-  - 通知中心
-  - 用戶選單（含登出功能）
+> ⚠️ 從瀏覽器直接打正式 API 可能遇到 **CORS** 限制，需後端放行或透過代理。
 
-- **Sidebar**:
-  - 深色主題
-  - 選單項目高亮顯示
-  - 響應式設計（移動設備上自動收合）
+### 新增 Mock 路由
 
-- **主要內容區**:
-  - 統計卡片
-  - 數據圖表區域
-  - 用戶管理表格
-  - 設定頁面
+在 `lib/app/data/providers/mock_interceptor.dart` 的 `_route()` 加一筆對應 `path`
+回傳的假資料即可，不影響正式 API 行為。
 
-## 自定義與擴展
+---
 
-### 添加新頁面
+## 與線上站的關係
 
-1. 在 `lib/router/app_router.dart` 添加新路由
-2. 在 `lib/screens/dashboard/widgets/sidebar.dart` 添加選單項目
-3. 在 `lib/screens/dashboard/widgets/main_content.dart` 添加頁面內容
+線上 `tnparking.tainan.gov.tw`（內部代號 `askey_Y25_citypark_web`）由廠商以
+**GetX + dio + flutter_svg + pdf_render/pdf.js + file_picker + intl** 開發。
+本專案還原相同技術選型作為開發 / 練習基底，目前實作登入與後台框架，
+資料層以 Mock 銜接，可隨時切換到正式 API。
 
-### 修改主題
+---
 
-在 `lib/main.dart` 中修改 `ThemeData` 配置：
+## 功能
 
-```dart
-theme: ThemeData(
-  colorScheme: ColorScheme.fromSeed(
-    seedColor: Colors.blue, // 修改主色調
-    brightness: Brightness.light,
-  ),
-  // 其他主題配置...
-)
-```
+- **使用者帳號清單**（`基本資料作業`）：搜尋、分頁、編輯、與線上站相同的版面與配色。
+- **SVG 圖示**：搜尋 / 新增 / 編輯 / 列印 / 匯入等皆使用線上站的真實 SVG（`assets/svg/`）。
+- **檔案匯入**：工具列「匯入」以 file_picker 選擇 Excel / CSV。
+- **PDF 預覽**：工具列「報表預覽」以 pdfrx 開啟對話框預覽 PDF（內建 `sample_report.pdf`，
+  也可改成 `PdfViewer.data` 預覽匯入的檔案）。
 
-### 連接後端 API
+## 已知事項
 
-修改 `lib/services/auth_service.dart`：
-
-```dart
-Future<bool> login(String username, String password) async {
-  // 替換為您的 API 呼叫
-  final response = await http.post(
-    Uri.parse('https://your-api.com/login'),
-    body: {'username': username, 'password': password},
-  );
-
-  if (response.statusCode == 200) {
-    // 處理成功的登入邏輯
-    return true;
-  }
-  return false;
-}
-```
-
-## CanvasKit 配置
-
-專案已配置使用 CanvasKit 渲染器以獲得最佳的 Web 性能。配置位於 `web/index.html`。
-
-### 優點
-- 更好的性能
-- 一致的跨平台渲染
-- 支援更多 Flutter 功能
-
-### 注意事項
-- 初始載入時間可能稍長（首次需下載 CanvasKit）
-- 檔案大小較大
-
-如需暫時切換到 HTML 渲染器，需修改 `web/index.html` 中的渲染器設定，將 `renderer: "canvaskit"` 改為 `renderer: "html"`。
-
-## 響應式設計
-
-系統支援多種螢幕尺寸：
-
-- **桌面** (>= 768px): 顯示完整的 Sidebar
-- **平板/手機** (< 768px): Sidebar 收合為抽屜式選單
-
-## 開發建議
-
-1. **狀態管理**: 目前使用簡單的 StatefulWidget，大型專案建議使用 Provider、Riverpod 或 Bloc
-2. **API 整合**: 建議使用 dio 或 http 套件進行 API 呼叫
-3. **表單驗證**: 可考慮使用 flutter_form_builder 或 formz
-4. **國際化**: 可使用 flutter_localizations 支援多語言
-
-## 授權
-
-此專案為示範用途，可自由使用和修改。
-
-## 聯絡方式
-
-如有任何問題或建議，歡迎提出 Issue。
+- 字型已內嵌 NotoSansTC（5 種粗細）+ Roboto，與線上站一致，無缺字方框問題。
+- **pdfrx 會打包 WASM 模組**，正式建置若要縮小體積，可在 `flutter build` 前執行
+  `dart run pdfrx:remove_wasm_modules`（還原用 `--revert`）。
